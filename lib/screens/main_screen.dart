@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -40,6 +41,9 @@ class _MainScreenState extends State<MainScreen> {
   
   // Share sheet listener (mobile only)
   StreamSubscription? _shareIntentSubscription;
+
+  // Android method channel for saving to Downloads via MediaStore
+  static const _storageChannel = MethodChannel('com.inatorweb.cryptinator/storage');
 
   bool get _isDesktop => Platform.isWindows || Platform.isMacOS || Platform.isLinux;
   bool get _isMobile => Platform.isAndroid || Platform.isIOS;
@@ -287,50 +291,45 @@ class _MainScreenState extends State<MainScreen> {
 
   Future<void> _saveToDownloads(String filePath, String fileName) async {
     try {
-      Directory? downloadsDir;
-      
       if (Platform.isAndroid) {
-        // Android Downloads folder
-        downloadsDir = Directory('/storage/emulated/0/Download');
+        // Use native MediaStore API via method channel
+        await _storageChannel.invokeMethod('saveToDownloads', {
+          'sourcePath': filePath,
+          'fileName': fileName,
+        });
       } else if (Platform.isIOS) {
         // iOS - use documents directory
-        downloadsDir = await getApplicationDocumentsDirectory();
-      }
-      
-      if (downloadsDir != null && await downloadsDir.exists()) {
-        // Skip if the file is already in the target directory
-        final fileDir = path.dirname(filePath);
-        if (fileDir == downloadsDir.path) {
-          return;
-        }
-        String destPath = path.join(downloadsDir.path, fileName);
-        String finalFileName = fileName;
+        final downloadsDir = await getApplicationDocumentsDirectory();
         
-        // Handle collisions
-        if (await File(destPath).exists() || await Directory(destPath).exists()) {
-          int counter = 1;
+        if (await downloadsDir.exists()) {
+          final fileDir = path.dirname(filePath);
+          if (fileDir == downloadsDir.path) return;
           
-          // For .crypt files, put counter before the original extension
-          // e.g. 1.txt.crypt → 1_1.txt.crypt (not 1.txt_1.crypt)
-          final isCrypt = fileName.endsWith('.crypt');
-          final nameWithoutCrypt = isCrypt
-              ? fileName.substring(0, fileName.length - 6) // strip .crypt
-              : fileName;
-          final innerBase = path.basenameWithoutExtension(nameWithoutCrypt);
-          final innerExt = path.extension(nameWithoutCrypt);
-          final outerExt = isCrypt ? '.crypt' : '';
+          String destPath = path.join(downloadsDir.path, fileName);
+          String finalFileName = fileName;
           
-          while (await File(destPath).exists() || await Directory(destPath).exists()) {
-            finalFileName = '${innerBase}_$counter$innerExt$outerExt';
-            destPath = path.join(downloadsDir.path, finalFileName);
-            counter++;
+          // Handle collisions
+          if (await File(destPath).exists() || await Directory(destPath).exists()) {
+            int counter = 1;
+            final isCrypt = fileName.endsWith('.crypt');
+            final nameWithoutCrypt = isCrypt
+                ? fileName.substring(0, fileName.length - 6)
+                : fileName;
+            final innerBase = path.basenameWithoutExtension(nameWithoutCrypt);
+            final innerExt = path.extension(nameWithoutCrypt);
+            final outerExt = isCrypt ? '.crypt' : '';
+            
+            while (await File(destPath).exists() || await Directory(destPath).exists()) {
+              finalFileName = '${innerBase}_$counter$innerExt$outerExt';
+              destPath = path.join(downloadsDir.path, finalFileName);
+              counter++;
+            }
           }
+          
+          await File(filePath).copy(destPath);
+        } else {
+          throw Exception('Documents folder not found');
         }
-        
-        // Copy file
-        await File(filePath).copy(destPath);
-      } else {
-        throw Exception('Downloads folder not found');
       }
     } catch (e) {
       if (mounted) {
