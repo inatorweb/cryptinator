@@ -19,7 +19,6 @@ dependencies:
   file_picker: ^8.0.0
   path: ^1.9.0
   receive_sharing_intent: ^1.8.0
-  share_plus: ^10.0.0
   path_provider: ^2.1.0
   
   # Desktop support
@@ -27,8 +26,8 @@ dependencies:
   window_manager: ^0.3.9
   screen_retriever: ^0.1.9
   
-  # UI
-  provider: ^6.1.2
+  # Packaging
+  msix: ^3.16.8
 
 dev_dependencies:
   flutter_test:
@@ -53,3 +52,11 @@ flutter:
   
   assets:
     - assets/icon/
+
+msix_config:
+  display_name: Cryptinator
+  publisher_display_name: Inator Ltd
+  identity_name: InatorLtd.Cryptinator
+  msix_version: 1.0.1.0
+  logo_path: assets/icon/app_icon.png
+  capabilities: ''
