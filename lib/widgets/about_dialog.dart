@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 
@@ -6,22 +7,65 @@ import 'package:path/path.dart' as path;
 class AboutDialog extends StatelessWidget {
   const AboutDialog({super.key});
 
-  Future<void> _openLicenseFile(String filename) async {
-    // Get the directory where the exe is located
-    final exeDir = path.dirname(Platform.resolvedExecutable);
-    final filePath = path.join(exeDir, filename);
-    
-    final file = File(filePath);
-    if (await file.exists()) {
-      // Open with default text editor
-      if (Platform.isWindows) {
-        await Process.run('notepad', [filePath]);
-      } else if (Platform.isMacOS) {
-        await Process.run('open', [filePath]);
-      } else if (Platform.isLinux) {
-        await Process.run('xdg-open', [filePath]);
+  bool get _isMobile => Platform.isAndroid || Platform.isIOS;
+
+  Future<void> _openLicenseFile(BuildContext context, String filename) async {
+    if (_isMobile) {
+      // On mobile, show license text in a new dialog
+      await _showLicenseInApp(context, filename);
+    } else {
+      // On desktop, open with default text editor
+      final exeDir = path.dirname(Platform.resolvedExecutable);
+      final filePath = path.join(exeDir, filename);
+      
+      final file = File(filePath);
+      if (await file.exists()) {
+        if (Platform.isWindows) {
+          await Process.run('notepad', [filePath]);
+        } else if (Platform.isMacOS) {
+          await Process.run('open', [filePath]);
+        } else if (Platform.isLinux) {
+          await Process.run('xdg-open', [filePath]);
+        }
       }
     }
+  }
+
+  Future<void> _showLicenseInApp(BuildContext context, String filename) async {
+    String content;
+    try {
+      content = await rootBundle.loadString('assets/$filename');
+    } catch (_) {
+      content = 'License file not found.';
+    }
+
+    if (!context.mounted) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          appBar: AppBar(
+            title: Text(
+              filename == 'LICENSE.txt' ? 'GPL v3 License' : 'Open Source Licenses',
+              style: TextStyle(fontSize: 16),
+            ),
+            backgroundColor: Color(0xFF0369a1),
+            foregroundColor: Colors.white,
+          ),
+          body: SingleChildScrollView(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              content,
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                height: 1.5,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -50,7 +94,7 @@ class AboutDialog extends StatelessWidget {
                 ),
               ),
               Text(
-                'Version 1.0.0',
+                'Version 1.0.1',
                 style: TextStyle(fontSize: 11, color: Colors.grey),
               ),
               SizedBox(height: 12),
@@ -95,7 +139,7 @@ class AboutDialog extends StatelessWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => _openLicenseFile('LICENSE.txt'),
+                      onPressed: () => _openLicenseFile(context, 'LICENSE.txt'),
                       style: OutlinedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: 8),
                       ),
@@ -105,7 +149,7 @@ class AboutDialog extends StatelessWidget {
                   SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => _openLicenseFile('LICENSES.txt'),
+                      onPressed: () => _openLicenseFile(context, 'LICENSES.txt'),
                       style: OutlinedButton.styleFrom(
                         padding: EdgeInsets.symmetric(vertical: 8),
                       ),
@@ -118,7 +162,7 @@ class AboutDialog extends StatelessWidget {
               SizedBox(height: 16),
               
               Text(
-                '© 2024-2025 Inator Ltd',
+                '© 2024-2026 Inator Ltd',
                 style: TextStyle(fontSize: 10, color: Colors.grey),
               ),
               Text(

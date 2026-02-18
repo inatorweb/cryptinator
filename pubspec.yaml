@@ -1,7 +1,7 @@
 name: cryptinator
 description: Secure file and folder encryption
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -52,11 +52,13 @@ flutter:
   
   assets:
     - assets/icon/
+    - assets/LICENSE.txt
+    - assets/LICENSES.txt
 
 msix_config:
   display_name: Cryptinator
   publisher_display_name: Inator Ltd
   identity_name: InatorLtd.Cryptinator
-  msix_version: 1.0.1.0
+  msix_version: 1.0.2.0
   logo_path: assets/icon/app_icon.png
   capabilities: ''
