@@ -61,11 +61,32 @@ class _PasswordDialogState extends State<PasswordDialog> {
     Navigator.of(context).pop(password);
   }
 
+  // Common weak passwords and patterns to penalise
+  static final _commonPasswords = {
+    'password', 'password1', 'password12', 'password123', 'password1234',
+    '12345678', '123456789', '1234567890', '12345678910',
+    'qwerty123', 'qwertyui', 'qwertyuiop', 'qwerty12', 'qwerty1234',
+    'abcdefgh', 'abcd1234', 'abc12345', 'abcdefg1',
+    'iloveyou', 'trustno1', 'sunshine1', 'princess1', 'football1',
+    'baseball1', 'dragon12', 'master12', 'monkey123', 'shadow12',
+    'letmein1', 'welcome1', 'login123', 'admin123', 'passw0rd',
+    'p@ssw0rd', 'p@ssword', 'pa\$\$word', 'changeme', 'changeme1',
+    'computer', 'internet', 'whatever', 'superman', 'batman123',
+  };
+
+  static final _keyboardWalks = [
+    'qwerty', 'qwert', 'asdfgh', 'zxcvbn', 'qazwsx', 'wsxedc',
+    'edcrfv', 'rfvtgb', 'tgbyhn', 'yhnujm', '!@#\$%^', '!@#\$%^&',
+    'zaqwsx', 'xswqaz', '1qaz2wsx', 'qwertyuiop', 'asdfghjkl',
+    'zxcvbnm', '1q2w3e4r', '1q2w3e', 'qweasd', 'asdqwe',
+  ];
+
   /// Calculate password strength (0.0 to 1.0)
   double _calculateStrength(String password) {
     if (password.isEmpty) return 0.0;
 
     double score = 0.0;
+    final lower = password.toLowerCase();
 
     // Length scoring
     if (password.length >= 8) score += 0.15;
@@ -81,6 +102,44 @@ class _PasswordDialogState extends State<PasswordDialog> {
 
     // Non-ASCII characters (multi-alphabet bonus)
     if (password.contains(RegExp(r'[^\x00-\x7F]'))) score += 0.1;
+
+    // --- Penalty: common passwords ---
+    if (_commonPasswords.contains(lower)) {
+      score -= 0.5;
+    }
+
+    // --- Penalty: contains a keyboard walk ---
+    for (final walk in _keyboardWalks) {
+      if (lower.contains(walk)) {
+        score -= 0.25;
+        break;
+      }
+    }
+
+    // --- Penalty: excessive character repetition (e.g. "aaaaaaa1!") ---
+    final charCounts = <String, int>{};
+    for (final c in lower.split('')) {
+      charCounts[c] = (charCounts[c] ?? 0) + 1;
+    }
+    final maxRepeat = charCounts.values.fold(0, (a, b) => a > b ? a : b);
+    if (maxRepeat > password.length * 0.5) {
+      score -= 0.25;
+    }
+
+    // --- Penalty: sequential characters (abc, 123, etc.) ---
+    int sequentialCount = 0;
+    for (int i = 0; i < password.length - 2; i++) {
+      final c1 = password.codeUnitAt(i);
+      final c2 = password.codeUnitAt(i + 1);
+      final c3 = password.codeUnitAt(i + 2);
+      if (c2 == c1 + 1 && c3 == c2 + 1) sequentialCount++;
+      if (c2 == c1 - 1 && c3 == c2 - 1) sequentialCount++;
+    }
+    if (sequentialCount >= 3) {
+      score -= 0.2;
+    } else if (sequentialCount >= 1) {
+      score -= 0.1;
+    }
 
     return score.clamp(0.0, 1.0);
   }

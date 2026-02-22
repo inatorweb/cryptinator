@@ -335,7 +335,7 @@ class _MainScreenState extends State<MainScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to save: $e'),
+            content: Text('Failed to save file. Please try again.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -421,7 +421,7 @@ class _MainScreenState extends State<MainScreen> {
       }
     } catch (e) {
       setState(() {
-        _statusMessage = '✗ Error: $e';
+        _statusMessage = '✗ Operation failed. Please try again.';
       });
     } finally {
       setState(() {
@@ -491,9 +491,11 @@ class _MainScreenState extends State<MainScreen> {
       _statusMessage = 'Creating bundle...';
     });
 
+    Directory? tempDir;
+
     try {
-      final tempDir = await Directory.systemTemp.createTemp('cryptinator_bundle_');
-      
+      tempDir = await Directory.systemTemp.createTemp('cryptinator_bundle_');
+
       for (final filePath in _selectedFiles) {
         final fileName = path.basename(filePath);
         await File(filePath).copy(path.join(tempDir.path, fileName));
@@ -519,8 +521,6 @@ class _MainScreenState extends State<MainScreen> {
         },
       );
 
-      await tempDir.delete(recursive: true);
-
       if (success) {
         setState(() {
           _statusMessage = _savesToSeparateLocation
@@ -544,9 +544,15 @@ class _MainScreenState extends State<MainScreen> {
       }
     } catch (e) {
       setState(() {
-        _statusMessage = '✗ Error: $e';
+        _statusMessage = '✗ Operation failed. Please try again.';
       });
     } finally {
+      // Always clean up temp directory to avoid leaving unencrypted copies on disk
+      if (tempDir != null && await tempDir.exists()) {
+        try {
+          await tempDir.delete(recursive: true);
+        } catch (_) {}
+      }
       setState(() {
         _isOperationInProgress = false;
       });
@@ -615,7 +621,7 @@ class _MainScreenState extends State<MainScreen> {
       }
     } catch (e) {
       setState(() {
-        _statusMessage = '✗ Error: $e';
+        _statusMessage = '✗ Operation failed. Please try again.';
       });
     } finally {
       setState(() {

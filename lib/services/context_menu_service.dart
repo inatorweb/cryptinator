@@ -210,6 +210,16 @@ class ContextMenuService {
     return path.replaceAll("'", "'\\''");
   }
 
+  /// Escape a string for safe embedding in XML/plist content
+  String _xmlEscape(String value) {
+    return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&apos;');
+  }
+
   Future<bool> _isInstalledMacOS() async {
     try {
       final home = Platform.environment['HOME'];
@@ -223,7 +233,7 @@ class ContextMenuService {
   Future<bool> _installMacOS() async {
     try {
       final home = Platform.environment['HOME'];
-      final exePath = _shellEscape(Platform.resolvedExecutable);
+      final exePath = _xmlEscape(_shellEscape(Platform.resolvedExecutable));
       final servicesDir = '$home/Library/Services';
 
       // Create Services directory if needed

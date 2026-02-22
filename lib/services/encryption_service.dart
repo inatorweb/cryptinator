@@ -15,7 +15,7 @@ class EncryptionService {
   // Argon2id parameters
   static const int argon2Memory = 65536; // 64 MB in KB
   static const int argon2Iterations = 10;
-  static const int argon2Parallelism = 1;
+  static const int argon2Parallelism = 4;
 
   // File format markers
   static final Uint8List fileMarker = Uint8List.fromList([0x43, 0x52, 0x59, 0x50]); // "CRYP"
@@ -26,7 +26,7 @@ class EncryptionService {
   static const int contentTypeFolder = 0x01;
 
   // Maximum file size (2 GB)
-  static const int maxFileSize = 2 * 1024 * 1024 * 1024;
+  static const int maxFileSize = 2147483648; // 2 GB
 
   // Rate limiting for decryption attempts
   int _failedAttempts = 0;
@@ -52,7 +52,9 @@ class EncryptionService {
   /// Generate cryptographically secure random bytes
   Uint8List _generateRandomBytes(int length) {
     final data = SecretKeyData.random(length: length);
-    return Uint8List.fromList(data.bytes);
+    final bytes = Uint8List.fromList(data.bytes);
+    data.destroy();
+    return bytes;
   }
 
   /// Zero out a byte array to clear sensitive data from memory
@@ -309,6 +311,14 @@ class EncryptionService {
       onProgress?.call('Done!');
       return true;
     } catch (e) {
+      // Clean up any partial output on failure
+      try {
+        if (await Directory(outputPath).exists()) {
+          await Directory(outputPath).delete(recursive: true);
+        } else if (await File(outputPath).exists()) {
+          await File(outputPath).delete();
+        }
+      } catch (_) {}
       onProgress?.call('Decryption failed');
       return false;
     } finally {
@@ -369,6 +379,18 @@ class EncryptionService {
   /// Extract ZIP bytes to a folder — with Zip Slip protection
   Future<void> _extractZip(Uint8List zipData, String outputPath) async {
     final archive = ZipDecoder().decodeBytes(zipData);
+
+    // ZIP bomb protection: check total decompressed size before extracting
+    int totalDecompressedSize = 0;
+    for (final file in archive) {
+      if (file.isFile) {
+        totalDecompressedSize += file.size;
+        if (totalDecompressedSize > maxFileSize) {
+          throw Exception(
+              'Decompressed folder too large. Maximum total size is ${_formatSize(maxFileSize)}.');
+        }
+      }
+    }
 
     // Resolve the canonical output directory path
     final outputDir = Directory(outputPath);
@@ -436,6 +458,18 @@ class EncryptionService {
 
     await sink.flush();
     await sink.close();
+
+    // Verify the write completed with correct size
+    final expectedSize = fileMarker.length + 1 + salt.length + nonce.length +
+        ciphertext.length + mac.length;
+    final actualSize = await output.length();
+    if (actualSize != expectedSize) {
+      // Clean up corrupt output
+      try {
+        await output.delete();
+      } catch (_) {}
+      throw Exception('Write verification failed — disk may be full');
+    }
   }
 
   /// Compare two byte arrays in constant time
